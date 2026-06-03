@@ -2,12 +2,13 @@
 #include "render.h"
 #include "globals.h"
 
+// Dibuja el mapa, el jugador, los barriles y la información en pantalla.
 void drawGame() {
 
     clear();
 
     // Dibujar mapa
-    for(int i = 0; i < mapLayout.size(); i++) {
+    for(int i = 0; i < mapLayout.size(); i++) { // fila actual del mapa
 
         mvaddstr(i, 0, mapLayout[i].c_str());
     }
@@ -31,7 +32,7 @@ void drawGame() {
     }
 
     // Dibujar barriles
-    for(auto &barrel : barrels) {
+    for(auto &barrel : barrels) { // iterar cada barril disponible
 
         if(barrel.active &&
            barrel.y >= 0 &&

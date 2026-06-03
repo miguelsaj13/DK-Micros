@@ -1,8 +1,8 @@
 #ifndef ENTITIES_H
 #define ENTITIES_H
 
+// Estado dinámico del jugador en el juego.
 struct Player {
-
     int x;
     int y;
     int lives;
@@ -13,6 +13,7 @@ struct Player {
     int jumpHeight;
 };
 
+// Estado dinámico de un barril en movimiento.
 struct Barrel {
     int x;
     int y;

@@ -2,9 +2,10 @@
 #include "menu.h"
 #include "game.h"
 
+// Muestra el menú principal y gestiona la entrada del usuario.
 void menu() {
 
-    int option;
+    int option; // opción seleccionada por el jugador.
 
     while(true) {
 
@@ -43,6 +44,7 @@ void menu() {
                 getch();
                 nodelay(stdscr, TRUE);
 
+                // ejecutar la partida para el jugador 1 y guardar su puntuación.
                 int score1 = startGame();
 
                 clear();

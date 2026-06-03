@@ -68,6 +68,7 @@ vector<string> originalMap = {
 
 vector<string> mapLayout = originalMap;
 
+// Devuelve verdadero si la posición forma parte de una escalera.
 bool isLadder(int y, int x) {
 
     if(y < 0 || y >= mapLayout.size())
@@ -80,6 +81,7 @@ bool isLadder(int y, int x) {
            mapLayout[y][x - 1] == '|' ||
            mapLayout[y][x + 1] == '|';
 }
+// Devuelve verdadero si la posición es suelo o apoyo de escalera.
 bool isSupport(int y, int x)
 {
     if(y < 0 || y >= mapLayout.size())
@@ -92,14 +94,15 @@ bool isSupport(int y, int x)
            mapLayout[y][x] == '|';
 }
 
+// Comprueba si el martillo está cerca de la posición indicada.
 bool isHammer(int y, int x) {
 
     for(int dy = -1; dy <= 1; dy++) {
 
         for(int dx = -1; dx <= 1; dx++) {
 
-            int ny = y + dy;
-            int nx = x + dx;
+            int ny = y + dy; // fila a comprobar alrededor del jugador.
+            int nx = x + dx; // columna a comprobar alrededor del jugador.
 
             if(ny >= 0 &&
                ny < mapLayout.size() &&
@@ -115,6 +118,7 @@ bool isHammer(int y, int x) {
     return false;
 }
 
+// Devuelve verdadero si la posición corresponde a una plataforma.
 bool isPlatform(int y, int x)
 {
     if(y < 0 || y >= mapLayout.size())
@@ -126,6 +130,7 @@ bool isPlatform(int y, int x)
     return mapLayout[y][x] == '=';
 }
 
+// Añade una puntuación al archivo local de resultados.
 void saveScore(string name, int score) {
 
     ofstream file("scores.txt", ios::app);
@@ -137,18 +142,20 @@ void saveScore(string name, int score) {
     }
 }
 
+// Muestra las puntuaciones ordenadas de mayor a menor.
 void showScores() {
 
     clear();
 
+    // lista de parejas <nombre, puntuación> leídas del archivo.
     vector<pair<string,int>> scores;
 
     ifstream file("scores.txt");
 
-    string name;
-    int score;
+    string name; // nombre del jugador leído del fichero.
+    int score; // puntuación correspondiente a ese nombre.
 
-    while(file >> name >> score) {
+    while(file >> name >> score) { // leer cada línea de resultado
         scores.push_back({name, score});
     }
 
@@ -159,7 +166,7 @@ void showScores() {
 
     mvprintw(2, 30, "TOP SCORES");
 
-    int row = 5;
+    int row = 5; // fila inicial para pintar los resultados.
 
     for(auto &s : scores) {
 
@@ -178,6 +185,7 @@ void showScores() {
     nodelay(stdscr, TRUE);
 }
 
+// Muestra las instrucciones hasta que el jugador pulse una tecla.
 void instructions() {
 
     clear();
@@ -210,6 +218,7 @@ void instructions() {
     nodelay(stdscr, TRUE);
 }
 
+// Gestiona el movimiento del jugador, el salto y la recogida de martillo.
 void *playerThread(void *arg) {
 
     while(running) {
@@ -269,7 +278,7 @@ void *playerThread(void *arg) {
 
                 while(true) {
 
-                    int pauseKey = getch();
+                    int pauseKey = getch(); // tecla usada para reanudar el juego.
 
                     if(pauseKey == 'p' || pauseKey == 'P')
                         break;
@@ -363,13 +372,14 @@ void *playerThread(void *arg) {
     return NULL;
 }
 
+// Genera barriles en la posición inicial a intervalos regulares.
 void *barrelSpawner(void *arg) {
 
     while(running) {
 
         pthread_mutex_lock(&gameMutex);
 
-        Barrel barrel;
+        Barrel barrel; // instancia temporal para el barril nuevo.
 
         barrel.x = 68;
         barrel.y = 1;
@@ -386,12 +396,14 @@ void *barrelSpawner(void *arg) {
     return NULL;
 }
 
+// Mueve los barriles y resuelve colisiones con el jugador.
 void *barrelMovement(void *arg) {
 
     while(running) {
 
         pthread_mutex_lock(&gameMutex);
 
+        // procesar cada barril activo en la lista.
         for(auto &barrel : barrels) {
 
             if(!barrel.active)
@@ -491,6 +503,7 @@ void *barrelMovement(void *arg) {
                 barrels.begin(),
                 barrels.end(),
                 [](const Barrel& b) {
+                    // eliminar barriles marcados como inactivos.
                     return !b.active;
                 }),
             barrels.end()
@@ -504,6 +517,7 @@ void *barrelMovement(void *arg) {
     return NULL;
 }
 
+// Redibuja la pantalla de juego de forma continua mientras exista la partida.
 void *renderThread(void *arg) {
 
     while(running) {
@@ -520,8 +534,8 @@ void *renderThread(void *arg) {
     return NULL;
 }
 
+// Inicializa el estado del juego, lanza los hilos y devuelve la puntuación final.
 int startGame() {
-
     player.x = 3;
     player.y = 25;
     player.lives = 3;
@@ -545,6 +559,7 @@ int startGame() {
 
     pthread_mutex_init(&gameMutex, NULL);
 
+    // identificadores de hilos para entrada, jugador, render, spawn y movimiento.
     pthread_t inputT;
     pthread_t playerT;
     pthread_t renderT;
@@ -577,7 +592,7 @@ int startGame() {
     nodelay(stdscr, FALSE);
     echo();
 
-    char name[50] = "";
+    char name[50] = ""; // buffer para el nombre del jugador.
 
     mvprintw(15, 20, "Enter your name: ");
     refresh();

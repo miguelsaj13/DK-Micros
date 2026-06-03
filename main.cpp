@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include "menu.h"
 
+// Inicializa la terminal y lanza el menú principal.
 int main() {
 
     initscr();
