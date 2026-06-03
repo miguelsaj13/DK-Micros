@@ -68,7 +68,12 @@ vector<string> originalMap = {
 
 vector<string> mapLayout = originalMap;
 
-// Devuelve verdadero si la posición forma parte de una escalera.
+/**
+ * Comprueba si la celda dada forma parte de una escalera.
+ * Variables:
+ *   int y - fila en el mapa.
+ *   int x - columna en el mapa.
+ */
 bool isLadder(int y, int x) {
 
     if(y < 0 || y >= mapLayout.size())
@@ -81,7 +86,12 @@ bool isLadder(int y, int x) {
            mapLayout[y][x - 1] == '|' ||
            mapLayout[y][x + 1] == '|';
 }
-// Devuelve verdadero si la posición es suelo o apoyo de escalera.
+/**
+ * Comprueba si la celda dada es un soporte sólido o parte de una escalera.
+ * Variables:
+ *   int y - fila en el mapa.
+ *   int x - columna en el mapa.
+ */
 bool isSupport(int y, int x)
 {
     if(y < 0 || y >= mapLayout.size())
@@ -94,7 +104,14 @@ bool isSupport(int y, int x)
            mapLayout[y][x] == '|';
 }
 
-// Comprueba si el martillo está cerca de la posición indicada.
+/**
+ * Comprueba si hay un martillo en las celdas vecinas a la posición dada.
+ * Variables:
+ *   int y - fila del jugador.
+ *   int x - columna del jugador.
+ *   int ny - fila de la celda comprobada.
+ *   int nx - columna de la celda comprobada.
+ */
 bool isHammer(int y, int x) {
 
     for(int dy = -1; dy <= 1; dy++) {
@@ -118,7 +135,12 @@ bool isHammer(int y, int x) {
     return false;
 }
 
-// Devuelve verdadero si la posición corresponde a una plataforma.
+/**
+ * Comprueba si la celda indicada pertenece a una plataforma.
+ * Variables:
+ *   int y - fila del mapa.
+ *   int x - columna del mapa.
+ */
 bool isPlatform(int y, int x)
 {
     if(y < 0 || y >= mapLayout.size())
@@ -130,7 +152,13 @@ bool isPlatform(int y, int x)
     return mapLayout[y][x] == '=';
 }
 
-// Añade una puntuación al archivo local de resultados.
+/**
+ * Añade una entrada de nombre y puntuación al archivo de resultados.
+ * Variables:
+ *   string name - nombre del jugador.
+ *   int score - puntuación final del jugador.
+ *   ofstream file - flujo de salida al archivo scores.txt.
+ */
 void saveScore(string name, int score) {
 
     ofstream file("scores.txt", ios::app);
@@ -142,7 +170,15 @@ void saveScore(string name, int score) {
     }
 }
 
-// Muestra las puntuaciones ordenadas de mayor a menor.
+/**
+ * Muestra la tabla de puntuaciones en pantalla.
+ * Variables:
+ *   vector<pair<string,int>> scores - resultados leídos del archivo.
+ *   ifstream file - flujo de entrada desde scores.txt.
+ *   string name - nombre leído de cada línea.
+ *   int score - puntuación leída de cada línea.
+ *   int row - fila de impresión en la pantalla.
+ */
 void showScores() {
 
     clear();
@@ -185,7 +221,10 @@ void showScores() {
     nodelay(stdscr, TRUE);
 }
 
-// Muestra las instrucciones hasta que el jugador pulse una tecla.
+/**
+ * Muestra la pantalla de instrucciones y espera una pulsación de tecla.
+ * No utiliza variables locales adicionales.
+ */
 void instructions() {
 
     clear();
@@ -218,7 +257,11 @@ void instructions() {
     nodelay(stdscr, TRUE);
 }
 
-// Gestiona el movimiento del jugador, el salto y la recogida de martillo.
+/**
+ * Ejecuta el hilo del jugador, procesando teclas, gravedad y colisiones.
+ * Variables:
+ *   int pauseKey - tecla usada para reanudar el juego cuando está en pausa.
+ */
 void *playerThread(void *arg) {
 
     while(running) {
@@ -372,7 +415,11 @@ void *playerThread(void *arg) {
     return NULL;
 }
 
-// Genera barriles en la posición inicial a intervalos regulares.
+/**
+ * Genera barriles nuevos desde la posición inicial del nivel.
+ * Variables:
+ *   Barrel barrel - estructura temporal que representa el nuevo barril.
+ */
 void *barrelSpawner(void *arg) {
 
     while(running) {
@@ -396,7 +443,11 @@ void *barrelSpawner(void *arg) {
     return NULL;
 }
 
-// Mueve los barriles y resuelve colisiones con el jugador.
+/**
+ * Gestiona el movimiento de los barriles y su interacción con el jugador.
+ * Variables:
+ *   Barrel &barrel - referencia al barril que se procesa.
+ */
 void *barrelMovement(void *arg) {
 
     while(running) {
@@ -517,7 +568,10 @@ void *barrelMovement(void *arg) {
     return NULL;
 }
 
-// Redibuja la pantalla de juego de forma continua mientras exista la partida.
+/**
+ * Ejecuta el hilo de renderizado para refrescar la pantalla periódicamente.
+ * No utiliza variables locales adicionales.
+ */
 void *renderThread(void *arg) {
 
     while(running) {
@@ -534,7 +588,16 @@ void *renderThread(void *arg) {
     return NULL;
 }
 
-// Inicializa el estado del juego, lanza los hilos y devuelve la puntuación final.
+/**
+ * Inicializa el estado completo del juego y ejecuta los hilos de entrada, lógica y renderizado.
+ * Variables:
+ *   pthread_t inputT - hilo de entrada de teclado.
+ *   pthread_t playerT - hilo de lógica del jugador.
+ *   pthread_t renderT - hilo de renderizado.
+ *   pthread_t spawnT - hilo de generación de barriles.
+ *   pthread_t moveT - hilo de movimiento de barriles.
+ *   char name[50] - buffer para el nombre ingresado por el jugador.
+ */
 int startGame() {
     player.x = 3;
     player.y = 25;

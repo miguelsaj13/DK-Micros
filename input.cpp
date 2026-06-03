@@ -4,7 +4,11 @@
 #include "globals.h"
 #include "input.h"
 
-// Lee el teclado y actualiza el estado global de la última tecla.
+/**
+ * Bucle del hilo de entrada que lee teclas y actualiza la variable global lastKey.
+ * Variables:
+ *   int ch - código de tecla leído desde ncurses.
+ */
 void *inputThread(void *arg) {
 
     while(running) {

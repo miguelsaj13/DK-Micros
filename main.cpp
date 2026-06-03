@@ -2,7 +2,10 @@
 #include <pthread.h>
 #include "menu.h"
 
-// Inicializa la terminal y lanza el menú principal.
+/**
+ * Inicializa ncurses y ejecuta el menú principal.
+ * No declara variables locales adicionales.
+ */
 int main() {
 
     initscr();

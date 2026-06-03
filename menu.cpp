@@ -2,7 +2,11 @@
 #include "menu.h"
 #include "game.h"
 
-// Muestra el menú principal y gestiona la entrada del usuario.
+/**
+ * Muestra el menú principal, lee la opción del jugador y lanza la acción adecuada.
+ * Variables:
+ *   int option - opción seleccionada por el jugador.
+ */
 void menu() {
 
     int option; // opción seleccionada por el jugador.

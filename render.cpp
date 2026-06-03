@@ -2,7 +2,12 @@
 #include "render.h"
 #include "globals.h"
 
-// Dibuja el mapa, el jugador, los barriles y la información en pantalla.
+/**
+ * Renderiza el estado actual del juego en pantalla, incluyendo HUD, jugador y barriles.
+ * Variables:
+ *   int i - índice de fila para recorrer el mapa.
+ *   Barrel &barrel - referencia a cada barril dentro del vector.
+ */
 void drawGame() {
 
     clear();
