@@ -12,27 +12,33 @@
 #include "render.h"
 #include "input.h"
 #include "globals.h"
+#include <atomic>
 
 using namespace std;
 
-bool running = true;
-bool gameOver = false;
-
-pthread_mutex_t gameMutex;
+pthread_mutex_t playerMutex;
+pthread_mutex_t barrelMutex;
+pthread_mutex_t eventMutex;
+pthread_mutex_t inputMutex;
+pthread_cond_t inputCond;
 
 Player player = {3, 25, 3, 0, false, 0, 0};
 
 vector<Barrel> barrels;
 
-char lastKey = '\0';
-
-bool hammerActive = false;
-bool hammerCollected = false;
 string gameEvent = "";
-int hammerTimer = 0;
 
-int levelGame = 1;
-int barrelSpeed = 1200000;
+std::atomic<bool> running(true);
+std::atomic<bool> gameOver(false);
+
+std::atomic<char> lastKey('\0');
+
+std::atomic<bool> hammerActive(false);
+std::atomic<bool> hammerCollected(false);
+
+std::atomic<int> hammerTimer(0);
+std::atomic<int> levelGame(1);
+std::atomic<int> barrelSpeed(1200000);
 
 vector<string> originalMap = {
 
@@ -264,11 +270,11 @@ void instructions() {
  */
 void *playerThread(void *arg) {
 
-    while(running) {
+    while(running.load()) {
 
-        pthread_mutex_lock(&gameMutex);
+        pthread_mutex_lock(&playerMutex);
 
-        switch(lastKey) {
+        switch(lastKey.load()) {
 
             case 'a':
             case 'A':
@@ -316,18 +322,22 @@ void *playerThread(void *arg) {
             case 'p':
             case 'P':
 
+                pthread_mutex_unlock(&playerMutex);
+
                 mvprintw(26, 30, "GAME PAUSED");
                 refresh();
 
                 while(true) {
 
-                    int pauseKey = getch(); // tecla usada para reanudar el juego.
+                    int pauseKey = getch();
 
                     if(pauseKey == 'p' || pauseKey == 'P')
                         break;
 
                     usleep(50000);
                 }
+
+                pthread_mutex_lock(&playerMutex);
 
                 break;
 
@@ -372,13 +382,17 @@ void *playerThread(void *arg) {
             player.y++;
         }
 
-
-        if(!hammerCollected && isHammer(player.y, player.x)) {
-
+        if(!hammerCollected.load() &&
+           isHammer(player.y, player.x))
+        {
             hammerActive = true;
             hammerCollected = true;
             hammerTimer = 800;
+
+            pthread_mutex_lock(&eventMutex);
             gameEvent = "Recogiste el martillo!";
+            pthread_mutex_unlock(&eventMutex);
+
             for(auto &row : mapLayout) {
 
                 for(char &c : row) {
@@ -388,33 +402,38 @@ void *playerThread(void *arg) {
                 }
             }
         }
-        if(hammerActive) {
+
+        if(hammerActive.load()) {
 
             hammerTimer--;
 
-            if(hammerTimer <= 0)
+            if(hammerTimer.load() <= 0)
                 hammerActive = false;
         }
 
-
         if(player.y <= 2) {
+
+            pthread_mutex_lock(&eventMutex);
             gameEvent = "Meta cumplida!";
+            pthread_mutex_unlock(&eventMutex);
+
             player.score += 500;
 
             running = false;
             gameOver = false;
         }
 
-        lastKey = '\0';
+        lastKey.store('\0');
 
-        pthread_mutex_unlock(&gameMutex);
-
-        usleep(50000);
+        pthread_mutex_unlock(&playerMutex);
+        
+        pthread_mutex_lock(&inputMutex);
+        pthread_cond_wait(&inputCond, &inputMutex);
+        pthread_mutex_unlock(&inputMutex);
     }
 
-    return NULL;
+    return nullptr;
 }
-
 /**
  * Genera barriles nuevos desde la posición inicial del nivel.
  * Variables:
@@ -422,11 +441,11 @@ void *playerThread(void *arg) {
  */
 void *barrelSpawner(void *arg) {
 
-    while(running) {
+    while(running.load()) {
 
-        pthread_mutex_lock(&gameMutex);
+        pthread_mutex_lock(&barrelMutex);
 
-        Barrel barrel; // instancia temporal para el barril nuevo.
+        Barrel barrel;
 
         barrel.x = 68;
         barrel.y = 1;
@@ -435,14 +454,13 @@ void *barrelSpawner(void *arg) {
 
         barrels.push_back(barrel);
 
-        pthread_mutex_unlock(&gameMutex);
+        pthread_mutex_unlock(&barrelMutex);
 
-        usleep(barrelSpeed);
+        usleep(barrelSpeed.load());
     }
 
-    return NULL;
+    return nullptr;
 }
-
 /**
  * Gestiona el movimiento de los barriles y su interacción con el jugador.
  * Variables:
@@ -450,28 +468,45 @@ void *barrelSpawner(void *arg) {
  */
 void *barrelMovement(void *arg) {
 
-    while(running) {
+    while(running.load()) {
 
-        pthread_mutex_lock(&gameMutex);
+        pthread_mutex_lock(&barrelMutex);
 
-        // procesar cada barril activo en la lista.
         for(auto &barrel : barrels) {
 
             if(!barrel.active)
                 continue;
 
-            if(abs(barrel.x - player.x) <= 1 &&
-               abs(barrel.y - player.y) <= 1) {
+            pthread_mutex_lock(&playerMutex);
 
-                if(hammerActive) {
+            bool collision =
+                abs(barrel.x - player.x) <= 1 &&
+                abs(barrel.y - player.y) <= 1;
+
+            pthread_mutex_unlock(&playerMutex);
+
+            if(collision) {
+
+                if(hammerActive.load()) {
 
                     barrel.active = false;
+
+                    pthread_mutex_lock(&playerMutex);
                     player.score += 100;
+                    pthread_mutex_unlock(&playerMutex);
+
+                    pthread_mutex_lock(&eventMutex);
                     gameEvent = "Barril destruido!";
+                    pthread_mutex_unlock(&eventMutex);
                 }
                 else {
 
+                    pthread_mutex_lock(&eventMutex);
                     gameEvent = "Perdiste una vida ...";
+                    pthread_mutex_unlock(&eventMutex);
+
+                    pthread_mutex_lock(&playerMutex);
+
                     player.lives--;
 
                     player.x = 3;
@@ -481,9 +516,13 @@ void *barrelMovement(void *arg) {
                     player.jumpFrames = 0;
                     player.jumpHeight = 0;
 
-                    lastKey = '\0';
+                    lastKey.store('\0');
 
-                    if(player.lives <= 0) {
+                    bool dead = (player.lives <= 0);
+
+                    pthread_mutex_unlock(&playerMutex);
+
+                    if(dead) {
 
                         running = false;
                         gameOver = true;
@@ -497,7 +536,7 @@ void *barrelMovement(void *arg) {
 
                 barrel.y++;
 
-                if(barrel.y >= mapLayout.size() - 1) {
+                if(barrel.y >= static_cast<int>(mapLayout.size()) - 1) {
 
                     barrel.active = false;
                     continue;
@@ -507,28 +546,43 @@ void *barrelMovement(void *arg) {
 
                 barrel.x += barrel.direction;
 
-                if(barrel.x <= 1) {
-
+                if(barrel.x <= 1)
                     barrel.direction = 1;
-                }
 
-                if(barrel.x >= 78) {
-
+                if(barrel.x >= 78)
                     barrel.direction = -1;
-                }
             }
 
-            if(abs(barrel.x - player.x) <= 1 &&
-               abs(barrel.y - player.y) <= 1) {
+            pthread_mutex_lock(&playerMutex);
 
-                if(hammerActive) {
+            collision =
+                abs(barrel.x - player.x) <= 1 &&
+                abs(barrel.y - player.y) <= 1;
+
+            pthread_mutex_unlock(&playerMutex);
+
+            if(collision) {
+
+                if(hammerActive.load()) {
 
                     barrel.active = false;
-                    gameEvent = "Barril saltado!";
+
+                    pthread_mutex_lock(&playerMutex);
                     player.score += 100;
+                    pthread_mutex_unlock(&playerMutex);
+
+                    pthread_mutex_lock(&eventMutex);
+                    gameEvent = "Barril saltado!";
+                    pthread_mutex_unlock(&eventMutex);
                 }
                 else {
+
+                    pthread_mutex_lock(&eventMutex);
                     gameEvent = "Perdiste una vida ...";
+                    pthread_mutex_unlock(&eventMutex);
+
+                    pthread_mutex_lock(&playerMutex);
+
                     player.lives--;
 
                     player.x = 3;
@@ -538,9 +592,13 @@ void *barrelMovement(void *arg) {
                     player.jumpFrames = 0;
                     player.jumpHeight = 0;
 
-                    lastKey = '\0';
+                    lastKey.store('\0');
 
-                    if(player.lives <= 0) {
+                    bool dead = (player.lives <= 0);
+
+                    pthread_mutex_unlock(&playerMutex);
+
+                    if(dead) {
 
                         running = false;
                         gameOver = true;
@@ -554,38 +612,32 @@ void *barrelMovement(void *arg) {
                 barrels.begin(),
                 barrels.end(),
                 [](const Barrel& b) {
-                    // eliminar barriles marcados como inactivos.
                     return !b.active;
                 }),
             barrels.end()
         );
 
-        pthread_mutex_unlock(&gameMutex);
+        pthread_mutex_unlock(&barrelMutex);
 
         usleep(150000);
     }
 
-    return NULL;
+    return nullptr;
 }
-
 /**
  * Ejecuta el hilo de renderizado para refrescar la pantalla periódicamente.
  * No utiliza variables locales adicionales.
  */
 void *renderThread(void *arg) {
 
-    while(running) {
-
-        pthread_mutex_lock(&gameMutex);
+    while(running.load()) {
 
         drawGame();
-
-        pthread_mutex_unlock(&gameMutex);
 
         usleep(33000);
     }
 
-    return NULL;
+    return nullptr;
 }
 
 /**
@@ -599,6 +651,7 @@ void *renderThread(void *arg) {
  *   char name[50] - buffer para el nombre ingresado por el jugador.
  */
 int startGame() {
+
     player.x = 3;
     player.y = 25;
     player.lives = 3;
@@ -606,44 +659,52 @@ int startGame() {
     player.jumping = false;
     player.jumpFrames = 0;
     player.jumpHeight = 0;
+
     hammerActive = false;
     hammerCollected = false;
     hammerTimer = 0;
+
     levelGame = 1;
     barrelSpeed = 1200000;
+
     lastKey = '\0';
 
     mapLayout = originalMap;
 
+    pthread_mutex_init(&playerMutex, nullptr);
+    pthread_mutex_init(&barrelMutex, nullptr);
+    pthread_mutex_init(&eventMutex, nullptr);
+    pthread_mutex_init(&inputMutex, nullptr);
+    pthread_cond_init(&inputCond, nullptr);
+
+    pthread_mutex_lock(&barrelMutex);
     barrels.clear();
+    pthread_mutex_unlock(&barrelMutex);
 
     running = true;
     gameOver = false;
 
-    pthread_mutex_init(&gameMutex, NULL);
-
-    // identificadores de hilos para entrada, jugador, render, spawn y movimiento.
     pthread_t inputT;
     pthread_t playerT;
     pthread_t renderT;
     pthread_t spawnT;
     pthread_t moveT;
 
-    pthread_create(&inputT, NULL, inputThread, NULL);
-    pthread_create(&playerT, NULL, playerThread, NULL);
-    pthread_create(&renderT, NULL, renderThread, NULL);
-    pthread_create(&spawnT, NULL, barrelSpawner, NULL);
-    pthread_create(&moveT, NULL, barrelMovement, NULL);
+    pthread_create(&inputT, nullptr, inputThread, nullptr);
+    pthread_create(&playerT, nullptr, playerThread, nullptr);
+    pthread_create(&renderT, nullptr, renderThread, nullptr);
+    pthread_create(&spawnT, nullptr, barrelSpawner, nullptr);
+    pthread_create(&moveT, nullptr, barrelMovement, nullptr);
 
-    pthread_join(inputT, NULL);
-    pthread_join(playerT, NULL);
-    pthread_join(renderT, NULL);
-    pthread_join(spawnT, NULL);
-    pthread_join(moveT, NULL);
+    pthread_join(inputT, nullptr);
+    pthread_join(playerT, nullptr);
+    pthread_join(renderT, nullptr);
+    pthread_join(spawnT, nullptr);
+    pthread_join(moveT, nullptr);
 
     clear();
 
-    if(gameOver)
+    if(gameOver.load())
         mvprintw(10, 30, "GAME OVER");
     else
         mvprintw(10, 30, "YOU WIN");
@@ -655,7 +716,7 @@ int startGame() {
     nodelay(stdscr, FALSE);
     echo();
 
-    char name[50] = ""; // buffer para el nombre del jugador.
+    char name[50] = "";
 
     mvprintw(15, 20, "Enter your name: ");
     refresh();
@@ -676,7 +737,11 @@ int startGame() {
 
     int finalScore = player.score;
 
-    pthread_mutex_destroy(&gameMutex);
+    pthread_mutex_destroy(&playerMutex);
+    pthread_mutex_destroy(&barrelMutex);
+    pthread_mutex_destroy(&eventMutex);
+    pthread_mutex_destroy(&inputMutex);
+    pthread_cond_destroy(&inputCond);
 
     return finalScore;
 }

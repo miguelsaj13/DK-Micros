@@ -1,49 +1,71 @@
 #include <ncurses.h>
+#include <vector>
+#include <string>
+
 #include "render.h"
 #include "globals.h"
 
 /**
- * Renderiza el estado actual del juego en pantalla, incluyendo HUD, jugador y barriles.
- * Variables:
- *   int i - índice de fila para recorrer el mapa.
- *   Barrel &barrel - referencia a cada barril dentro del vector.
+ * Renderiza el estado actual del juego en pantalla.
  */
-void drawGame() {
+void drawGame()
+{
+    Player playerCopy;
+    std::vector<Barrel> barrelsCopy;
+    std::string eventCopy;
+
+    // Copiar jugador de forma segura
+    pthread_mutex_lock(&playerMutex);
+    playerCopy = player;
+    pthread_mutex_unlock(&playerMutex);
+
+    // Copiar barriles de forma segura
+    pthread_mutex_lock(&barrelMutex);
+    barrelsCopy = barrels;
+    pthread_mutex_unlock(&barrelMutex);
+
+    // Copiar mensaje de evento de forma segura
+    pthread_mutex_lock(&eventMutex);
+    eventCopy = gameEvent;
+    pthread_mutex_unlock(&eventMutex);
 
     clear();
 
     // Dibujar mapa
-    for(int i = 0; i < mapLayout.size(); i++) { // fila actual del mapa
-
+    for(int i = 0; i < static_cast<int>(mapLayout.size()); i++)
+    {
         mvaddstr(i, 0, mapLayout[i].c_str());
     }
 
-    mvprintw(0, 2, "Lives: %d", player.lives);
-    mvprintw(0, 20, "Score: %d", player.score);
-    mvprintw(0, 40, "Level: %d", levelGame);
+    // HUD
+    mvprintw(0, 2, "Lives: %d", playerCopy.lives);
+    mvprintw(0, 20, "Score: %d", playerCopy.score);
+    mvprintw(0, 40, "Level: %d", levelGame.load());
 
-    if(hammerActive) {
+    if(hammerActive.load())
+    {
         mvprintw(0, 60, "HAMMER");
     }
-    mvprintw(27, 2, "Event: %-40s", gameEvent.c_str());
+
+    mvprintw(27, 2, "Event: %-40s", eventCopy.c_str());
 
     // Dibujar jugador
-    if(player.y >= 0 &&
-       player.y < mapLayout.size() &&
-       player.x >= 0 &&
-       player.x < mapLayout[player.y].size())
+    if(playerCopy.y >= 0 &&
+       playerCopy.y < static_cast<int>(mapLayout.size()) &&
+       playerCopy.x >= 0 &&
+       playerCopy.x < static_cast<int>(mapLayout[playerCopy.y].size()))
     {
-        mvaddch(player.y, player.x, 'M');
+        mvaddch(playerCopy.y, playerCopy.x, 'M');
     }
 
     // Dibujar barriles
-    for(auto &barrel : barrels) { // iterar cada barril disponible
-
+    for(const auto &barrel : barrelsCopy)
+    {
         if(barrel.active &&
            barrel.y >= 0 &&
-           barrel.y < mapLayout.size() &&
+           barrel.y < static_cast<int>(mapLayout.size()) &&
            barrel.x >= 0 &&
-           barrel.x < mapLayout[barrel.y].size())
+           barrel.x < static_cast<int>(mapLayout[barrel.y].size()))
         {
             mvaddch(barrel.y, barrel.x, 'O');
         }

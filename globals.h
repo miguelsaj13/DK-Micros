@@ -4,25 +4,33 @@
 #include <vector>
 #include <string>
 #include <pthread.h>
+#include <atomic>
+
 #include "entities.h"
 
-extern std::string gameEvent;
-extern bool running;
-extern bool gameOver;
+extern std::atomic<bool> running;
+extern std::atomic<bool> gameOver;
 
 extern Player player;
 extern std::vector<Barrel> barrels;
 
-extern pthread_mutex_t gameMutex;
+extern std::string gameEvent;
 
-extern char lastKey;
+extern pthread_mutex_t playerMutex;
+extern pthread_mutex_t barrelMutex;
+extern pthread_mutex_t eventMutex;
 
-extern bool hammerActive;
-extern bool hammerCollected;
-extern int hammerTimer;
+extern pthread_mutex_t inputMutex;
+extern pthread_cond_t inputCond;
 
-extern int levelGame;
-extern int barrelSpeed;
+extern std::atomic<char> lastKey;
+
+extern std::atomic<bool> hammerActive;
+extern std::atomic<bool> hammerCollected;
+extern std::atomic<int> hammerTimer;
+
+extern std::atomic<int> levelGame;
+extern std::atomic<int> barrelSpeed;
 
 extern std::vector<std::string> mapLayout;
 

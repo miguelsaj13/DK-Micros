@@ -1,30 +1,28 @@
 #include <unistd.h>
 #include <ncurses.h>
-#include <pthread.h>
+
 #include "globals.h"
 #include "input.h"
 
 /**
- * Bucle del hilo de entrada que lee teclas y actualiza la variable global lastKey.
- * Variables:
- *   int ch - código de tecla leído desde ncurses.
+ * Hilo encargado de capturar la entrada del teclado.
  */
-void *inputThread(void *arg) {
+void *inputThread(void *arg)
+{
+    while (running.load())
+    {
+        int ch = getch();
 
-    while(running) {
-
-        int ch = getch(); // código de tecla leído desde ncurses.
-
-        pthread_mutex_lock(&gameMutex);
-
-        if(ch != ERR) {
-            lastKey = ch;
+        if (ch != ERR)
+        {
+            lastKey.store(static_cast<char>(ch));
+            pthread_mutex_lock(&inputMutex);
+            pthread_cond_signal(&inputCond);
+            pthread_mutex_unlock(&inputMutex);
         }
-
-        pthread_mutex_unlock(&gameMutex);
 
         usleep(30000);
     }
 
-    return NULL;
+    return nullptr;
 }
