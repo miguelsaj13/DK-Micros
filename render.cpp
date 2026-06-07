@@ -47,7 +47,7 @@ void drawGame()
         mvprintw(0, 60, "HAMMER");
     }
 
-    mvprintw(27, 2, "Event: %-40s", eventCopy.c_str());
+    mvprintw(29, 2, "Event: %-40s", eventCopy.c_str());
 
     // Dibujar jugador
     if(playerCopy.y >= 0 &&
@@ -57,7 +57,14 @@ void drawGame()
     {
         mvaddch(playerCopy.y, playerCopy.x, 'M');
     }
-
+    // Dibujar Donkey Kong
+    if(donkeyKong.y >= 0 &&
+        donkeyKong.y < static_cast<int>(mapLayout.size()) &&
+        donkeyKong.x >= 0 &&
+        donkeyKong.x < static_cast<int>(mapLayout[donkeyKong.y].size()))
+    {
+        mvaddch(donkeyKong.y, donkeyKong.x, 'K');
+    }
     // Dibujar barriles
     for(const auto &barrel : barrelsCopy)
     {

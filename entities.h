@@ -19,6 +19,14 @@ struct Barrel {
     int y;
     bool active;
     int direction;
+
+    bool alreadyJumped;
+};
+
+// Estado de Donkey Kong.
+struct DonkeyKong {
+    int x;
+    int y;
 };
 
 #endif

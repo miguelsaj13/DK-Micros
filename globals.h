@@ -7,11 +7,13 @@
 #include <atomic>
 
 #include "entities.h"
+#include <semaphore.h>
 
 extern std::atomic<bool> running;
 extern std::atomic<bool> gameOver;
 
 extern Player player;
+extern DonkeyKong donkeyKong;
 extern std::vector<Barrel> barrels;
 
 extern std::string gameEvent;
@@ -22,6 +24,11 @@ extern pthread_mutex_t eventMutex;
 
 extern pthread_mutex_t inputMutex;
 extern pthread_cond_t inputCond;
+extern pthread_barrier_t frameBarrier;
+
+extern pthread_mutex_t tickMutex;
+extern pthread_cond_t tickCond;
+extern sem_t barrelSemaphore;
 
 extern std::atomic<char> lastKey;
 

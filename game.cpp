@@ -21,8 +21,13 @@ pthread_mutex_t barrelMutex;
 pthread_mutex_t eventMutex;
 pthread_mutex_t inputMutex;
 pthread_cond_t inputCond;
+pthread_mutex_t tickMutex;
+pthread_cond_t tickCond;
+pthread_barrier_t frameBarrier;
+sem_t barrelSemaphore;
 
 Player player = {3, 25, 3, 0, false, 0, 0};
+DonkeyKong donkeyKong = {63, 2};
 
 vector<Barrel> barrels;
 
@@ -44,34 +49,34 @@ vector<string> originalMap = {
 
 "================================================================================",
 "!                                                                              !",
-"!               |           DONKEY KONG                             K          !",
+"!               |           DONKEY KONG                                        !",
 "!          =====|==============================================================!",
 "!               |                                                              !",
 "!               |                                                              !",
-"!               |                                                    |         !",
-"!===============|====================================================|====     !",
-"!                                                                    |         !",
-"!                                                                    |         !",
-"!   |                                                                |         !",
-"!===|========= ======================================================|=========!",
+"!                                                                              !",
+"!==========================================================================    !",
+"!                                                                              !",
+"!                                                                         =====!",
+"!   |                                                                          !",
+"!===|========= ================================================================!",
 "!   |                                                                          !",
 "!   |                                                                          !",
-"!   |                                                                      |   !",
-"!===|=============================================================== ======|===!",
+"!                                                                          |   !",
+"!=================================================================== ======|===!",
 "!                                                                          |   !",
 "!                                                                          |   !",
-"!                |                                                         |   !",
-"!==== ===========|===============H=========================================|===!",
-"!                |                                                             !",
-"!                |                                                             !",
-"!                |                                                  |          !",
-"!================|==================================================|==        !",
+"!                                                                              !",
+"!    ============================H=============================================!",
+"!                                                                              !",
+"!====                                                                          !",
+"!                                                                   |          !",
+"!===================================================================|==        !",
+"!                                                                   |          !",
 "!                                                                   |          !",
 "!                                                                              !",
 "================================================================================"
 
 };
-
 vector<string> mapLayout = originalMap;
 
 /**
@@ -80,17 +85,15 @@ vector<string> mapLayout = originalMap;
  *   int y - fila en el mapa.
  *   int x - columna en el mapa.
  */
-bool isLadder(int y, int x) {
-
-    if(y < 0 || y >= mapLayout.size())
+bool isLadder(int y, int x)
+{
+    if(y < 0 || y >= static_cast<int>(mapLayout.size()))
         return false;
 
-    if(x < 1 || x >= mapLayout[y].size() - 1)
+    if(x < 0 || x >= static_cast<int>(mapLayout[y].size()))
         return false;
 
-    return mapLayout[y][x] == '|' ||
-           mapLayout[y][x - 1] == '|' ||
-           mapLayout[y][x + 1] == '|';
+    return mapLayout[y][x] == '|';
 }
 /**
  * Comprueba si la celda dada es un soporte sólido o parte de una escalera.
@@ -246,16 +249,14 @@ void instructions() {
     mvprintw(12, 5, "W -> Climb");
     mvprintw(13, 5, "S -> Down");
     mvprintw(14, 5, "SPACE -> Jump");
-    mvprintw(15, 5, "P -> Pause");
-    mvprintw(16, 5, "Q -> Quit");
 
-    mvprintw(19, 5, "GAME ELEMENTS:");
-    mvprintw(20, 5, "M -> Mario");
-    mvprintw(21, 5, "K -> Donkey Kong");
-    mvprintw(22, 5, "O -> Barrel");
-    mvprintw(23, 5, "H -> Hammer");
+    mvprintw(17, 5, "GAME ELEMENTS:");
+    mvprintw(18, 5, "M -> Mario");
+    mvprintw(19, 5, "K -> Donkey Kong");
+    mvprintw(20, 5, "O -> Barrel");
+    mvprintw(21, 5, "H -> Hammer");
 
-    mvprintw(26, 20, "Press any key to return...");
+    mvprintw(24, 20, "Press any key to return...");
     refresh();
 
     nodelay(stdscr, FALSE);
@@ -269,7 +270,7 @@ void instructions() {
  *   int pauseKey - tecla usada para reanudar el juego cuando está en pausa.
  */
 void *playerThread(void *arg) {
-
+    pthread_barrier_wait(&frameBarrier);
     while(running.load()) {
 
         pthread_mutex_lock(&playerMutex);
@@ -303,54 +304,26 @@ void *playerThread(void *arg) {
             case 's':
             case 'S':
 
-                if(isLadder(player.y, player.x))
+                if(isLadder(player.y, player.x) || isLadder(player.y + 1, player.x))
                     player.y++;
 
                 break;
 
             case ' ':
 
-                if(!player.jumping) {
+                if(!player.jumping && !isLadder(player.y, player.x)) {
 
                     player.jumping = true;
-                    player.jumpFrames = 10;
+                    player.jumpFrames = 6;
                     player.jumpHeight = 0;
                 }
 
-                break;
-
-            case 'p':
-            case 'P':
-
-                pthread_mutex_unlock(&playerMutex);
-
-                mvprintw(26, 30, "GAME PAUSED");
-                refresh();
-
-                while(true) {
-
-                    int pauseKey = getch();
-
-                    if(pauseKey == 'p' || pauseKey == 'P')
-                        break;
-
-                    usleep(50000);
-                }
-
-                pthread_mutex_lock(&playerMutex);
-
-                break;
-
-            case 'q':
-            case 'Q':
-
-                running = false;
                 break;
         }
 
         if(player.jumping) {
 
-            if(player.jumpFrames > 5) {
+            if(player.jumpFrames > 3) {
 
                 if(!isPlatform(player.y - 1, player.x)) {
 
@@ -362,8 +335,17 @@ void *playerThread(void *arg) {
 
                 if(player.jumpHeight > 0) {
 
-                    player.y++;
-                    player.jumpHeight--;
+                    if(!isSupport(player.y + 1, player.x))
+                    {
+                        player.y++;
+                        player.jumpHeight--;
+                    }
+                    else
+                    {
+                        player.jumping = false;
+                        player.jumpHeight = 0;
+                        player.jumpFrames = 0;
+                    }
                 }
             }
 
@@ -377,7 +359,7 @@ void *playerThread(void *arg) {
 
         if(!player.jumping &&
            !isSupport(player.y + 1, player.x) &&
-           !isLadder(player.y, player.x))
+           !isLadder(player.y, player.x) && !isLadder(player.y + 1, player.x))
         {
             player.y++;
         }
@@ -421,15 +403,30 @@ void *playerThread(void *arg) {
 
             running = false;
             gameOver = false;
+            pthread_mutex_lock(&tickMutex);
+            pthread_cond_broadcast(&tickCond);
+            pthread_mutex_unlock(&tickMutex);
         }
 
         lastKey.store('\0');
 
         pthread_mutex_unlock(&playerMutex);
         
-        pthread_mutex_lock(&inputMutex);
-        pthread_cond_wait(&inputCond, &inputMutex);
-        pthread_mutex_unlock(&inputMutex);
+        pthread_mutex_lock(&tickMutex);
+        pthread_cond_wait(&tickCond, &tickMutex);
+        pthread_mutex_unlock(&tickMutex);
+    }
+    return nullptr;
+}
+void *gameClockThread(void *arg)
+{
+    while(running.load())
+    {
+        usleep(50000); // 50 ms por tick
+
+        pthread_mutex_lock(&tickMutex);
+        pthread_cond_broadcast(&tickCond);
+        pthread_mutex_unlock(&tickMutex);
     }
 
     return nullptr;
@@ -439,24 +436,45 @@ void *playerThread(void *arg) {
  * Variables:
  *   Barrel barrel - estructura temporal que representa el nuevo barril.
  */
-void *barrelSpawner(void *arg) {
+void *donkeyKongThread(void *arg)
+{
+    pthread_barrier_wait(&frameBarrier);
+    int spawnCounter = 0;
 
-    while(running.load()) {
+    while(running.load())
+    {
+        spawnCounter++;
+
+        if(spawnCounter < 24)
+        {
+            pthread_mutex_lock(&tickMutex);
+            pthread_cond_wait(&tickCond, &tickMutex);
+            pthread_mutex_unlock(&tickMutex);
+
+            continue;
+        }
+
+        spawnCounter = 0;
 
         pthread_mutex_lock(&barrelMutex);
 
         Barrel barrel;
 
-        barrel.x = 68;
-        barrel.y = 1;
+        barrel.x = donkeyKong.x - 1;
+        barrel.y = donkeyKong.y + 1;
         barrel.active = true;
         barrel.direction = -1;
+        barrel.alreadyJumped = false;
 
         barrels.push_back(barrel);
 
-        pthread_mutex_unlock(&barrelMutex);
+        sem_post(&barrelSemaphore);
 
-        usleep(barrelSpeed.load());
+        pthread_mutex_unlock(&barrelMutex);
+        
+        pthread_mutex_lock(&tickMutex);
+        pthread_cond_wait(&tickCond, &tickMutex);
+        pthread_mutex_unlock(&tickMutex);
     }
 
     return nullptr;
@@ -468,7 +486,23 @@ void *barrelSpawner(void *arg) {
  */
 void *barrelMovement(void *arg) {
 
+    pthread_barrier_wait(&frameBarrier);
+    int barrelTickCounter = 0;
+
     while(running.load()) {
+
+        barrelTickCounter++;
+
+        if(barrelTickCounter < 3)
+        {
+            pthread_mutex_lock(&tickMutex);
+            pthread_cond_wait(&tickCond, &tickMutex);
+            pthread_mutex_unlock(&tickMutex);
+
+            continue;
+        }
+
+        barrelTickCounter = 0;
 
         pthread_mutex_lock(&barrelMutex);
 
@@ -479,7 +513,110 @@ void *barrelMovement(void *arg) {
 
             pthread_mutex_lock(&playerMutex);
 
+            bool jumpedBarrel =
+                !barrel.alreadyJumped &&
+                player.jumping &&
+                abs(barrel.x - player.x) <= 1 &&
+                barrel.y > player.y;
+
+            pthread_mutex_unlock(&playerMutex);
+
+            if(jumpedBarrel)
+            {
+                barrel.alreadyJumped = true;
+
+                pthread_mutex_lock(&eventMutex);
+                gameEvent = "Barril saltado!";
+                pthread_mutex_unlock(&eventMutex);
+
+                pthread_mutex_lock(&playerMutex);
+                player.score += 50;
+                pthread_mutex_unlock(&playerMutex);
+            }
+
+            pthread_mutex_lock(&playerMutex);
+
             bool collision =
+                barrel.x == player.x &&
+                barrel.y == player.y;
+
+            pthread_mutex_unlock(&playerMutex);
+
+            if(collision) {
+
+                if(hammerActive.load()) {
+
+                    barrel.active = false;
+
+                    pthread_mutex_lock(&playerMutex);
+                    player.score += 100;
+                    pthread_mutex_unlock(&playerMutex);
+
+                    pthread_mutex_lock(&eventMutex);
+                    gameEvent = "Barril destruido!";
+                    pthread_mutex_unlock(&eventMutex);
+                }
+                else {
+
+                    pthread_mutex_lock(&eventMutex);
+                    gameEvent = "Perdiste una vida ...";
+                    pthread_mutex_unlock(&eventMutex);
+
+                    pthread_mutex_lock(&playerMutex);
+
+                    player.lives--;
+
+                    player.x = 3;
+                    player.y = 25;
+
+                    player.jumping = false;
+                    player.jumpFrames = 0;
+                    player.jumpHeight = 0;
+
+                    lastKey.store('\0');
+
+                    bool dead = (player.lives <= 0);
+
+                    pthread_mutex_unlock(&playerMutex);
+
+                    if(dead) {
+
+                        running = false;
+                        gameOver = true;
+
+                        pthread_mutex_lock(&tickMutex);
+                        pthread_cond_broadcast(&tickCond);
+                        pthread_mutex_unlock(&tickMutex);
+                    }
+                }
+
+                continue;
+            }
+
+            if(!isSupport(barrel.y + 1, barrel.x)) {
+
+                barrel.y++;
+
+                if(barrel.y >= static_cast<int>(mapLayout.size()) - 1) {
+
+                    barrel.active = false;
+                    continue;
+                }
+            }
+            else {
+
+                barrel.x += barrel.direction;
+
+                if(barrel.x <= 1)
+                    barrel.direction = 1;
+
+                if(barrel.x >= 78)
+                    barrel.direction = -1;
+            }
+
+            pthread_mutex_lock(&playerMutex);
+
+            collision =
                 abs(barrel.x - player.x) <= 1 &&
                 abs(barrel.y - player.y) <= 1;
 
@@ -528,82 +665,6 @@ void *barrelMovement(void *arg) {
                         gameOver = true;
                     }
                 }
-
-                continue;
-            }
-
-            if(!isSupport(barrel.y + 1, barrel.x)) {
-
-                barrel.y++;
-
-                if(barrel.y >= static_cast<int>(mapLayout.size()) - 1) {
-
-                    barrel.active = false;
-                    continue;
-                }
-            }
-            else {
-
-                barrel.x += barrel.direction;
-
-                if(barrel.x <= 1)
-                    barrel.direction = 1;
-
-                if(barrel.x >= 78)
-                    barrel.direction = -1;
-            }
-
-            pthread_mutex_lock(&playerMutex);
-
-            collision =
-                abs(barrel.x - player.x) <= 1 &&
-                abs(barrel.y - player.y) <= 1;
-
-            pthread_mutex_unlock(&playerMutex);
-
-            if(collision) {
-
-                if(hammerActive.load()) {
-
-                    barrel.active = false;
-
-                    pthread_mutex_lock(&playerMutex);
-                    player.score += 100;
-                    pthread_mutex_unlock(&playerMutex);
-
-                    pthread_mutex_lock(&eventMutex);
-                    gameEvent = "Barril saltado!";
-                    pthread_mutex_unlock(&eventMutex);
-                }
-                else {
-
-                    pthread_mutex_lock(&eventMutex);
-                    gameEvent = "Perdiste una vida ...";
-                    pthread_mutex_unlock(&eventMutex);
-
-                    pthread_mutex_lock(&playerMutex);
-
-                    player.lives--;
-
-                    player.x = 3;
-                    player.y = 25;
-
-                    player.jumping = false;
-                    player.jumpFrames = 0;
-                    player.jumpHeight = 0;
-
-                    lastKey.store('\0');
-
-                    bool dead = (player.lives <= 0);
-
-                    pthread_mutex_unlock(&playerMutex);
-
-                    if(dead) {
-
-                        running = false;
-                        gameOver = true;
-                    }
-                }
             }
         }
 
@@ -619,7 +680,9 @@ void *barrelMovement(void *arg) {
 
         pthread_mutex_unlock(&barrelMutex);
 
-        usleep(150000);
+        pthread_mutex_lock(&tickMutex);
+        pthread_cond_wait(&tickCond, &tickMutex);
+        pthread_mutex_unlock(&tickMutex);
     }
 
     return nullptr;
@@ -628,18 +691,20 @@ void *barrelMovement(void *arg) {
  * Ejecuta el hilo de renderizado para refrescar la pantalla periódicamente.
  * No utiliza variables locales adicionales.
  */
-void *renderThread(void *arg) {
-
-    while(running.load()) {
+void *renderThread(void *arg)
+{
+    pthread_barrier_wait(&frameBarrier);
+    while(running.load())
+    {
+        pthread_mutex_lock(&tickMutex);
+        pthread_cond_wait(&tickCond, &tickMutex);
+        pthread_mutex_unlock(&tickMutex);
 
         drawGame();
-
-        usleep(33000);
     }
 
     return nullptr;
 }
-
 /**
  * Inicializa el estado completo del juego y ejecuta los hilos de entrada, lógica y renderizado.
  * Variables:
@@ -676,6 +741,10 @@ int startGame() {
     pthread_mutex_init(&eventMutex, nullptr);
     pthread_mutex_init(&inputMutex, nullptr);
     pthread_cond_init(&inputCond, nullptr);
+    pthread_mutex_init(&tickMutex, nullptr);
+    pthread_cond_init(&tickCond, nullptr);
+    pthread_barrier_init(&frameBarrier, nullptr, 4);
+    sem_init(&barrelSemaphore, 0, 0);
 
     pthread_mutex_lock(&barrelMutex);
     barrels.clear();
@@ -687,19 +756,22 @@ int startGame() {
     pthread_t inputT;
     pthread_t playerT;
     pthread_t renderT;
-    pthread_t spawnT;
+    pthread_t donkeyT;
     pthread_t moveT;
+    pthread_t clockT;
 
     pthread_create(&inputT, nullptr, inputThread, nullptr);
+    pthread_create(&clockT, nullptr, gameClockThread, nullptr);
     pthread_create(&playerT, nullptr, playerThread, nullptr);
     pthread_create(&renderT, nullptr, renderThread, nullptr);
-    pthread_create(&spawnT, nullptr, barrelSpawner, nullptr);
+    pthread_create(&donkeyT, nullptr, donkeyKongThread, nullptr);
     pthread_create(&moveT, nullptr, barrelMovement, nullptr);
 
     pthread_join(inputT, nullptr);
+    pthread_join(clockT, nullptr);
     pthread_join(playerT, nullptr);
     pthread_join(renderT, nullptr);
-    pthread_join(spawnT, nullptr);
+    pthread_join(donkeyT, nullptr);
     pthread_join(moveT, nullptr);
 
     clear();
@@ -742,6 +814,10 @@ int startGame() {
     pthread_mutex_destroy(&eventMutex);
     pthread_mutex_destroy(&inputMutex);
     pthread_cond_destroy(&inputCond);
+    pthread_mutex_destroy(&tickMutex);
+    pthread_cond_destroy(&tickCond);
+    sem_destroy(&barrelSemaphore);
+    pthread_barrier_destroy(&frameBarrier);
 
     return finalScore;
 }
