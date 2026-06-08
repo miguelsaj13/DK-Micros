@@ -9,8 +9,12 @@
 #include "entities.h"
 #include <semaphore.h>
 
-extern std::atomic<bool> running;
-extern std::atomic<bool> gameOver;
+/*
+ * Estado global compartido por los módulos de juego.
+ * Estas variables son utilizadas por los hilos de entrada, lógica y render.
+ */
+extern std::atomic<bool> running;   // Controla si la partida sigue activa.
+extern std::atomic<bool> gameOver;  // Indica si la partida terminó en derrota.
 
 extern Player player;
 extern DonkeyKong donkeyKong;
@@ -37,8 +41,8 @@ extern std::atomic<bool> hammerCollected;
 extern std::atomic<int> hammerTimer;
 
 extern std::atomic<int> levelGame;
-extern std::atomic<int> barrelSpeed;
+extern std::atomic<int> barrelSpeed; // Velocidad base de movimiento de barriles.
 
-extern std::vector<std::string> mapLayout;
+extern std::vector<std::string> mapLayout; // Mapa actual del nivel en uso.
 
 #endif

@@ -1,12 +1,13 @@
+/*
+ * Módulo de entrada del juego.
+ * Lee el teclado y notifica cambios de estado a través de variables sincronizadas.
+ */
 #include <unistd.h>
 #include <ncurses.h>
 
 #include "globals.h"
 #include "input.h"
 
-/**
- * Hilo encargado de capturar la entrada del teclado.
- */
 void *inputThread(void *arg)
 {
     while (running.load())

@@ -1,11 +1,11 @@
+/*
+ * Punto de entrada de la aplicación.
+ * Inicializa ncurses y ejecuta el menú principal de la partida.
+ */
 #include <ncurses.h>
 #include <pthread.h>
 #include "menu.h"
 
-/**
- * Inicializa ncurses y ejecuta el menú principal.
- * No declara variables locales adicionales.
- */
 int main() {
 
     initscr();

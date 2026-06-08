@@ -1,7 +1,10 @@
 #ifndef MENU_H
 #define MENU_H
 
-// Muestra el menú principal y procesa la selección del jugador.
+/*
+ * Interfaz del menú principal.
+ * Permite seleccionar partida individual, dos jugadores, instrucciones y resultados.
+ */
 void menu();
 
 #endif

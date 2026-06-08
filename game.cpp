@@ -1,3 +1,7 @@
+/*
+ * Núcleo de la lógica del juego.
+ * Gestiona la ejecución de hilos, el avance de estado y las reglas del escenario.
+ */
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -264,10 +268,9 @@ void instructions() {
     nodelay(stdscr, TRUE);
 }
 
-/**
- * Ejecuta el hilo del jugador, procesando teclas, gravedad y colisiones.
- * Variables:
- *   int pauseKey - tecla usada para reanudar el juego cuando está en pausa.
+/*
+ * Lógica del jugador.
+ * Procesa entrada, salto, gravedad, recolección de martillo y final de nivel.
  */
 void *playerThread(void *arg) {
     pthread_barrier_wait(&frameBarrier);
@@ -418,6 +421,10 @@ void *playerThread(void *arg) {
     }
     return nullptr;
 }
+/*
+ * Hilo de tiempo global.
+ * Genera ticks periódicos para sincronizar los hilos del juego.
+ */
 void *gameClockThread(void *arg)
 {
     while(running.load())
@@ -431,10 +438,10 @@ void *gameClockThread(void *arg)
 
     return nullptr;
 }
-/**
- * Genera barriles nuevos desde la posición inicial del nivel.
- * Variables:
- *   Barrel barrel - estructura temporal que representa el nuevo barril.
+
+/*
+ * Generador de barriles.
+ * Añade un nuevo barril al vector compartido en intervalos regulares.
  */
 void *donkeyKongThread(void *arg)
 {
@@ -479,10 +486,9 @@ void *donkeyKongThread(void *arg)
 
     return nullptr;
 }
-/**
- * Gestiona el movimiento de los barriles y su interacción con el jugador.
- * Variables:
- *   Barrel &barrel - referencia al barril que se procesa.
+/*
+ * Lógica del movimiento de barriles.
+ * Actualiza posición, detecta colisiones y elimina barriles inactivos.
  */
 void *barrelMovement(void *arg) {
 
@@ -687,9 +693,9 @@ void *barrelMovement(void *arg) {
 
     return nullptr;
 }
-/**
- * Ejecuta el hilo de renderizado para refrescar la pantalla periódicamente.
- * No utiliza variables locales adicionales.
+/*
+ * Hilo de renderizado.
+ * Espera ticks de sincronización y dibuja el estado actual en pantalla.
  */
 void *renderThread(void *arg)
 {
@@ -705,15 +711,9 @@ void *renderThread(void *arg)
 
     return nullptr;
 }
-/**
- * Inicializa el estado completo del juego y ejecuta los hilos de entrada, lógica y renderizado.
- * Variables:
- *   pthread_t inputT - hilo de entrada de teclado.
- *   pthread_t playerT - hilo de lógica del jugador.
- *   pthread_t renderT - hilo de renderizado.
- *   pthread_t spawnT - hilo de generación de barriles.
- *   pthread_t moveT - hilo de movimiento de barriles.
- *   char name[50] - buffer para el nombre ingresado por el jugador.
+/*
+ * Inicializa el estado de la partida y ejecuta la cadena de hilos hasta su término.
+ * Devuelve la puntuación final para su almacenamiento.
  */
 int startGame() {
 

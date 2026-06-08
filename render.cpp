@@ -1,3 +1,7 @@
+/*
+ * Módulo de renderizado.
+ * Dibuja el mapa, el HUD y los actores activos de forma segura.
+ */
 #include <ncurses.h>
 #include <vector>
 #include <string>
@@ -5,9 +9,6 @@
 #include "render.h"
 #include "globals.h"
 
-/**
- * Renderiza el estado actual del juego en pantalla.
- */
 void drawGame()
 {
     Player playerCopy;
